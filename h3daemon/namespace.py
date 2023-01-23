@@ -1,9 +1,10 @@
+import re
 from dataclasses import dataclass
-from pathlib import Path
 
 __all__ = ["Namespace"]
 
 PREFIX = set(["h3pod", "h3master", "h3worker"])
+PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$")
 
 
 @dataclass
@@ -20,18 +21,16 @@ class Namespace:
         self.master = f"h3master_{name}"
         self.worker = f"h3worker_{name}"
 
-    @property
-    def name(self):
-        return self.pod.split("_", 1)[1]
+        if not PATTERN.match(self.pod):
+            raise ValueError(f"{name} is not a valid name.")
 
     @classmethod
     def from_qualname(cls, qualname: str):
         return cls(qualname.split("_", 1)[1])
 
-    @classmethod
-    def from_hmmfile(cls, hmmfile: Path):
-        return cls(hmmfile.name)
-
     @staticmethod
     def check(name: str):
         return name.split("_", 1)[0] in PREFIX
+
+    def __str__(self):
+        return self.pod.split("_", 1)[1]

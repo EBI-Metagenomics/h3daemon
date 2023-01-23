@@ -1,11 +1,9 @@
-from pathlib import Path
-
 from podman import PodmanClient
 from podman.domain.containers import Container
+from podman.domain.images import Image
 from podman.domain.pods import Pod
 
-from h3daemon.images import H3MASTER_IMAGE, H3WORKER_IMAGE, fetch_image
-from h3daemon.namespace import Namespace
+from h3daemon.hmmfile import HMMFile
 
 __all__ = ["H3Pod"]
 
@@ -27,16 +25,17 @@ PORTMAPPING = {
 
 
 class H3Pod:
-    def __init__(self, hmmfile: Path):
-        self._hmmfile = hmmfile.resolve()
-        self._namespace = Namespace.from_hmmfile(self._hmmfile)
+    def __init__(self, hmmfile: HMMFile, master_image: Image, worker_image: Image):
+        self._hmmfile = hmmfile
         self._pod: Pod | None = None
         self._master: Container | None = None
         self._worker: Container | None = None
+        self._master_image = master_image
+        self._worker_image = worker_image
 
     @property
     def namespace(self):
-        return self._namespace
+        return self._hmmfile.namespace
 
     @property
     def host_port(self) -> int:
@@ -48,49 +47,45 @@ class H3Pod:
     def host_ip(self):
         assert self._pod
         bindings = self._pod.attrs["InfraConfig"]["PortBindings"]
-        return bindings["51371/tcp"][0]["HostIp"]
+        return bindings[f"{HMMPGMD_PORT}/tcp"][0]["HostIp"]
 
-    def create(self, clt: PodmanClient, port: int):
-        name = self._namespace.pod
-        pm = PORTMAPPING.copy()
-        pm["host_port"] = port
+    def start(self, clt: PodmanClient):
+        name = self.namespace.pod
+        pm = PORTMAPPING
         self._pod = clt.pods.create(name, portmappings=[pm], read_only_filesystem=True)
         self._master = self._create_master(clt)
         self._worker = self._create_worker(clt)
-
-    def _create_master(self, clt: PodmanClient):
-        return clt.containers.create(
-            fetch_image(clt, H3MASTER_IMAGE),
-            command=[self._hmmfile.name],
-            name=self._namespace.master,
-            detach=True,
-            tty=True,
-            pod=self._pod,
-            overlay_volumes=self._overlay_volumes(),
-            working_dir=WORKING_DIR,
-            healthcheck=HEALTHCHECK,
-        )
-
-    def _create_worker(self, clt: PodmanClient):
-        return clt.containers.create(
-            fetch_image(clt, H3WORKER_IMAGE),
-            name=self._namespace.worker,
-            detach=True,
-            tty=True,
-            pod=self._pod,
-            overlay_volumes=self._overlay_volumes(),
-            working_dir=WORKING_DIR,
-            healthcheck=HEALTHCHECK,
-        )
-
-    def start(self):
         assert self._master
         assert self._worker
         self._master.start()
         self._worker.start()
 
-    def _datadir(self):
-        return self._hmmfile.parent
+    def _create_master(self, clt: PodmanClient):
+        return clt.containers.create(
+            self._master_image,
+            command=[self._hmmfile.name],
+            name=self.namespace.master,
+            detach=True,
+            tty=True,
+            pod=self._pod,
+            overlay_volumes=self._overlay_volumes(),
+            working_dir=WORKING_DIR,
+            healthcheck=HEALTHCHECK,
+            remove=True,
+        )
+
+    def _create_worker(self, clt: PodmanClient):
+        return clt.containers.create(
+            self._worker_image,
+            name=self.namespace.worker,
+            detach=True,
+            tty=True,
+            pod=self._pod,
+            overlay_volumes=self._overlay_volumes(),
+            working_dir=WORKING_DIR,
+            healthcheck=HEALTHCHECK,
+            remove=True,
+        )
 
     def _overlay_volumes(self):
-        return [{"source": str(self._datadir()), "destination": "/data"}]
+        return [{"source": str(self._hmmfile.dir), "destination": "/data"}]

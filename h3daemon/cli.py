@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-import signal
 from enum import IntEnum
 from pathlib import Path
 from typing import Optional
 
 import typer
-from podman import PodmanClient
-from podman.errors import APIError
+from podman.errors import APIError, NotFound
 
-from h3daemon.env import env
-from h3daemon.hmmpress import hmmpress
-from h3daemon.info import list_namespaces
+from h3daemon.hmmfile import HMMFile
+from h3daemon.manager import H3Manager
 from h3daemon.meta import __version__
 from h3daemon.namespace import Namespace
-from h3daemon.pod import H3Pod
 
 __all__ = ["app"]
 
@@ -39,33 +35,11 @@ def info():
     """
     Show Podman information.
     """
-    with PodmanClient(base_url=env.H3DAEMON_URI) as clt:
-        version = clt.version()
-        typer.echo("Release: ", version["Version"])
-        typer.echo("Compatible API: ", version["ApiVersion"])
-        typer.echo("Podman API: ", version["Components"][0]["Details"]["APIVersion"])
-
-
-@app.command()
-def rm(
-    namespace: Optional[str] = typer.Argument(None),
-    all: bool = typer.Option(False, "--all"),
-):
-    """
-    Remove namespace.
-    """
-    with PodmanClient(base_url=env.H3DAEMON_URI) as clt:
-        if all:
-            assert not namespace
-            for ns in list_namespaces(clt):
-                pod = clt.pods.get(ns.pod)
-                pod.remove(force=True)
-        else:
-            assert namespace
-            ns = Namespace(namespace)
-            if clt.pods.exists(ns.pod):
-                pod = clt.pods.get(ns.pod)
-                pod.remove(force=True)
+    with H3Manager() as h3:
+        x = h3.info()
+        typer.echo(f"Release: {x.release}")
+        typer.echo(f"Compatible API: {x.compatible_api}")
+        typer.echo(f"Podman API: {x.podman_api}")
 
 
 @app.command()
@@ -76,18 +50,13 @@ def stop(
     """
     Stop namespace.
     """
-    with PodmanClient(base_url=env.H3DAEMON_URI) as clt:
+    with H3Manager() as h3:
         if all:
             assert not namespace
-            for ns in list_namespaces(clt):
-                pod = clt.pods.get(ns.pod)
-                pod.stop(timeout=1)
+            h3.stop_all()
         else:
             assert namespace
-            ns = Namespace(namespace)
-            if clt.pods.exists(ns.pod):
-                pod = clt.pods.get(ns.pod)
-                pod.stop(timeout=1)
+            h3.stop(Namespace(namespace))
 
 
 @app.command()
@@ -95,9 +64,33 @@ def ls():
     """
     List namespaces.
     """
-    with PodmanClient(base_url=env.H3DAEMON_URI) as clt:
-        for name in list_namespaces(clt):
-            typer.echo(name.name)
+    with H3Manager() as h3:
+        for ns in h3.namespaces():
+            typer.echo(str(ns))
+
+
+def rich_status(status: str):
+    if status == "exited":
+        return typer.style("✘", fg=typer.colors.RED) + " exited"
+    if status == "running":
+        return typer.style("✔", fg=typer.colors.GREEN) + " running"
+    return status
+
+
+@app.command()
+def status(namespace: str):
+    """
+    Namespace status.
+    """
+    with H3Manager() as h3:
+        ns = Namespace(namespace)
+        try:
+            st = h3.status(ns)
+            typer.echo("Master: " + rich_status(st["master"]))
+            typer.echo("Worker: " + rich_status(st["worker"]))
+        except NotFound:
+            typer.secho(f"Pod {ns} not found", fg=typer.colors.RED, bold=True)
+            raise typer.Exit(EXIT_CODE.FAILURE)
 
 
 @app.command()
@@ -105,15 +98,17 @@ def start(hmmfile: Path):
     """
     Start daemon.
     """
-    with PodmanClient(base_url=env.H3DAEMON_URI) as clt:
-        pod = H3Pod(hmmfile)
+    with H3Manager() as h3:
+        x = HMMFile(hmmfile)
         try:
-            pod.create(clt, 0)
-            pod.start()
-            print(f"Daemon listening on {pod.host_ip}:{pod.host_port}")
-        except APIError as e:
-            remove_silently(pod.namespace)
-            raise e
+            pod = h3.start(x)
+            typer.echo(f"Daemon started listening {pod.host_ip}:{pod.host_port}")
+        except APIError as err:
+            if err.status_code == 409:
+                msg = f"Pod and/or containers within the namespace {x.namespace} already exist."
+                typer.secho(msg, fg=typer.colors.RED, bold=True)
+                raise typer.Exit(EXIT_CODE.FAILURE)
+            h3.rm_quietly(x.namespace)
 
 
 @app.command()
@@ -121,20 +116,5 @@ def press(hmmfile: Path):
     """
     Press hmmer3 ASCII file.
     """
-    with PodmanClient(base_url=env.H3DAEMON_URI) as clt:
-        hmmpress(clt, hmmfile)
-
-
-def remove_silently(namespace: Namespace):
-    with PodmanClient(base_url=env.H3DAEMON_URI) as clt:
-        if clt.pods.exists(namespace.pod):
-            pod = clt.pods.get(namespace.pod)
-            try:
-                pod.kill(signal.SIGKILL)
-            except APIError:
-                pass
-
-            try:
-                pod.remove(force=True)
-            except APIError:
-                pass
+    with H3Manager() as h3:
+        h3.hmmpress(HMMFile(hmmfile))
