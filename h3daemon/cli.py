@@ -115,7 +115,7 @@ def start(hmmfile: Path):
         x = HMMFile(hmmfile)
         try:
             pod = h3.start(x)
-            typer.echo(f"Daemon started listening {pod.host_ip}:{pod.host_port}")
+            typer.echo(f"Daemon started listening at {pod.host_ip}:{pod.host_port}")
         except APIError as err:
             if err.status_code == 409:
                 msg = f"Pod and/or containers within the namespace {x.namespace} already exist."
