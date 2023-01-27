@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pprint
 from enum import IntEnum
 from pathlib import Path
 from typing import Optional
@@ -31,15 +32,29 @@ def cli(version: Optional[bool] = typer.Option(None, "--version", is_eager=True)
 
 
 @app.command()
-def info():
+def system():
     """
     Show Podman information.
     """
     with H3Manager() as h3:
-        x = h3.info()
+        x = h3.system()
         typer.echo(f"Release: {x.release}")
         typer.echo(f"Compatible API: {x.compatible_api}")
         typer.echo(f"Podman API: {x.podman_api}")
+
+
+@app.command()
+def info(namespace: str):
+    """
+    Show namespace information.
+    """
+    with H3Manager() as h3:
+        ns = Namespace(namespace)
+        try:
+            typer.echo(pprint.pformat(h3.info(ns).asdict()))
+        except NotFound:
+            typer.secho(f"Pod {ns} not found", fg=typer.colors.RED, bold=True)
+            raise typer.Exit(EXIT_CODE.FAILURE)
 
 
 @app.command()
@@ -69,25 +84,23 @@ def ls():
             typer.echo(str(ns))
 
 
-def rich_status(status: str):
-    if status == "exited":
-        return typer.style("✘", fg=typer.colors.RED) + " exited"
-    if status == "running":
+def rich_state(state: str):
+    if state == "running":
         return typer.style("✔", fg=typer.colors.GREEN) + " running"
-    return status
+    return typer.style("✘", fg=typer.colors.RED) + f" {state}"
 
 
 @app.command()
-def status(namespace: str):
+def state(namespace: str):
     """
-    Namespace status.
+    Show namespace state.
     """
     with H3Manager() as h3:
         ns = Namespace(namespace)
         try:
-            st = h3.status(ns)
-            typer.echo("Master: " + rich_status(st["master"]))
-            typer.echo("Worker: " + rich_status(st["worker"]))
+            st = h3.state(ns)
+            typer.echo("Master: " + rich_state(st.master))
+            typer.echo("Worker: " + rich_state(st.worker))
         except NotFound:
             typer.secho(f"Pod {ns} not found", fg=typer.colors.RED, bold=True)
             raise typer.Exit(EXIT_CODE.FAILURE)

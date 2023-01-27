@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from h3daemon.local import Local
 
-__all__ = ["Env", "env"]
+__all__ = ["Env", "get_env"]
 
 
 @dataclass
@@ -27,6 +27,3 @@ def get_env():
         uri = local.api_uri()
 
     return Env(uri)
-
-
-env = get_env()

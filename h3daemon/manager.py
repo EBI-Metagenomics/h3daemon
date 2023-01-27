@@ -6,24 +6,44 @@ from podman import PodmanClient
 from podman.domain.containers import Container
 from podman.errors import APIError
 
-from h3daemon.env import env
+from h3daemon.env import get_env
 from h3daemon.hmmfile import HMMFile
 from h3daemon.images import H3MASTER_IMAGE, H3WORKER_IMAGE, HMMPRESS_IMAGE
 from h3daemon.info import H3Info
-from h3daemon.namespace import Namespace
+from h3daemon.namespace import Namespace, NamespaceInfo
 from h3daemon.pod import H3Pod
+from h3daemon.state import State
 
 __all__ = ["H3Manager"]
 
 
 class H3Manager:
     def __init__(self):
+        env = get_env()
         self._podman = PodmanClient(base_url=env.H3DAEMON_URI)
 
-    def info(self):
+    def system(self):
         x = self._podman.version()
         details = x["Components"][0]["Details"]
         return H3Info(x["Version"], x["ApiVersion"], details["APIVersion"])
+
+    def info(self, ns: Namespace):
+        info = NamespaceInfo()
+        pod = self._podman.pods.get(ns.pod)
+
+        x = [i for i in pod.attrs["Containers"] if i["Name"] == ns.master]
+        if len(x) > 0:
+            info.master.state = x[0]["State"]
+
+        x = [i for i in pod.attrs["Containers"] if i["Name"] == ns.worker]
+        if len(x) > 0:
+            info.worker.state = x[0]["State"]
+
+        binding = pod.attrs["InfraConfig"]["PortBindings"]["51371/tcp"][0]
+        info.host.ip = binding["HostIp"]
+        info.host.port = binding["HostPort"]
+
+        return info
 
     def start(self, hmmfile: HMMFile):
         master_image = self.fetch_image(H3MASTER_IMAGE)
@@ -44,19 +64,9 @@ class H3Manager:
             pod.stop(timeout=1)
             pod.remove(force=True)
 
-    def status(self, ns: Namespace):
-        st = {"master": "unknown", "worker": "unknown"}
-        pod = self._podman.pods.get(ns.pod)
-
-        x = [i for i in pod.attrs["Containers"] if i["Name"] == ns.master]
-        if len(x) > 0:
-            st["master"] = x[0]["State"]
-
-        x = [i for i in pod.attrs["Containers"] if i["Name"] == ns.worker]
-        if len(x) > 0:
-            st["worker"] = x[0]["State"]
-
-        return st
+    def state(self, ns: Namespace):
+        info = self.info(ns)
+        return State(info.worker.state, info.master.state)
 
     def namespaces(self):
         names = [x.name for x in self._podman.pods.list() if x.name]

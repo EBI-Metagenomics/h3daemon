@@ -1,7 +1,7 @@
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 
-__all__ = ["Namespace"]
+__all__ = ["Namespace", "NamespaceInfo"]
 
 PREFIX = set(["h3pod", "h3master", "h3worker"])
 PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]+$")
@@ -34,3 +34,33 @@ class Namespace:
 
     def __str__(self):
         return self.pod.split("_", 1)[1]
+
+
+@dataclass
+class Master:
+    state: str = "unknown"
+
+
+@dataclass
+class Worker:
+    state: str = "unknown"
+
+
+@dataclass
+class Host:
+    ip: str = "unknown"
+    port: str = "unknown"
+
+
+@dataclass
+class NamespaceInfo:
+    master: Master = field(default_factory=Master)
+    worker: Worker = field(default_factory=Worker)
+    host: Host = field(default_factory=Host)
+
+    def asdict(self):
+        return {
+            "master": asdict(self.master),
+            "worker": asdict(self.worker),
+            "host": asdict(self.host),
+        }
