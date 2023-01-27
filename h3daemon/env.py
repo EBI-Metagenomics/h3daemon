@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from functools import lru_cache
 
 from dotenv import load_dotenv
+
+from h3daemon.local import Local
 
 __all__ = ["Env", "env"]
 
@@ -13,6 +16,17 @@ class Env:
     H3DAEMON_URI: str
 
 
-load_dotenv()
+@lru_cache
+def get_env():
+    load_dotenv()
 
-env = Env(os.getenv("H3DAEMON_URI", "unix:///run/user/501/podman/podman.sock"))
+    uri = os.getenv("H3DAEMON_URI", None)
+    if not uri:
+        local = Local()
+        local.assert_running_state()
+        uri = local.api_uri()
+
+    return Env(uri)
+
+
+env = get_env()
