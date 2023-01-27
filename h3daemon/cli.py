@@ -109,6 +109,9 @@ def state(namespace: str):
 @app.command()
 def start(
     hmmfile: Path,
+    port: int = typer.Option(
+        0, help="Port to listen to. Randomly chooses one that is available if 0."
+    ),
     force: bool = typer.Option(
         False, "--force", help="Stop namespace first if it already exists."
     ),
@@ -119,7 +122,7 @@ def start(
     with H3Manager() as h3:
         x = HMMFile(hmmfile)
         try:
-            pod = h3.start(x, force)
+            pod = h3.start(x, port, force)
             typer.echo(f"Daemon started listening at {pod.host_ip}:{pod.host_port}")
         except APIError as err:
             if err.status_code == 409:

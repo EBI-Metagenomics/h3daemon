@@ -49,9 +49,10 @@ class H3Pod:
         bindings = self._pod.attrs["InfraConfig"]["PortBindings"]
         return bindings[f"{HMMPGMD_PORT}/tcp"][0]["HostIp"]
 
-    def start(self, clt: PodmanClient):
+    def start(self, clt: PodmanClient, port: int = 0):
         name = self.namespace.pod
-        pm = PORTMAPPING
+        pm = PORTMAPPING.copy()
+        pm["host_port"] = port
         self._pod = clt.pods.create(name, portmappings=[pm], read_only_filesystem=True)
         self._master = self._create_master(clt)
         self._worker = self._create_worker(clt)
