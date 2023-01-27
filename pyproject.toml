@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "h3daemon"
-version = "0.5.0"
+version = "0.6.0"
 description = "Run HMMER daemon on containers"
 authors = ["Danilo Horta <danilo.horta@pm.me>"]
 license = "MIT"
@@ -17,4 +17,4 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-h3d = 'h3daemon.cli:app'
+h3daemon = 'h3daemon.cli:app'
