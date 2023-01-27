@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pprint
+import json
 from enum import IntEnum
 from pathlib import Path
 from typing import Optional
@@ -51,7 +51,7 @@ def info(namespace: str):
     with H3Manager() as h3:
         ns = Namespace(namespace)
         try:
-            typer.echo(pprint.pformat(h3.info(ns).asdict()))
+            typer.echo(json.dumps(h3.info(ns).asdict(), indent=2))
         except NotFound:
             typer.secho(f"Pod {ns} not found", fg=typer.colors.RED, bold=True)
             raise typer.Exit(EXIT_CODE.FAILURE)
