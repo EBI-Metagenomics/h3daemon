@@ -45,10 +45,12 @@ class H3Manager:
 
         return info
 
-    def start(self, hmmfile: HMMFile):
+    def start(self, hmmfile: HMMFile, force=False):
         master_image = self.fetch_image(H3MASTER_IMAGE)
         worker_image = self.fetch_image(H3WORKER_IMAGE)
         pod = H3Pod(hmmfile, master_image, worker_image)
+        if force:
+            self.stop(pod.namespace)
         pod.start(self._podman)
         return pod
 
