@@ -130,6 +130,7 @@ def start(
                 typer.secho(msg, fg=typer.colors.RED, bold=True)
                 raise typer.Exit(EXIT_CODE.FAILURE)
             h3.rm_quietly(x.namespace)
+            raise err
 
 
 @app.command()

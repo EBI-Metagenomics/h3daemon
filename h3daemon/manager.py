@@ -97,7 +97,7 @@ class H3Manager:
 
     def fetch_image(self, name: str, force=False):
         if force or not self._podman.images.exists(name):
-            self._podman.images.pull(name)
+            self._podman.images.pull(name, tag="latest")
         return self._podman.images.get(name)
 
     def close(self):
