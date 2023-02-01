@@ -6,7 +6,7 @@ from functools import lru_cache
 
 from dotenv import load_dotenv
 
-from h3daemon.local import Local
+from h3daemon.infer_api_uri import infer_api_uri
 
 __all__ = ["Env", "get_env"]
 
@@ -21,9 +21,4 @@ def get_env():
     load_dotenv()
 
     uri = os.getenv("H3DAEMON_URI", None)
-    if not uri:
-        local = Local()
-        local.assert_running_state()
-        uri = local.api_uri()
-
-    return Env(uri)
+    return Env(uri if uri else infer_api_uri())
