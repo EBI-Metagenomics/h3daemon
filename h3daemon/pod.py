@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from podman.domain.pods import Pod
 
 from h3daemon.container import H3ContainerInfo
+from h3daemon.health import Health
 from h3daemon.hmmfile import HMMFile
 from h3daemon.master import Master
 from h3daemon.namespace import Namespace
@@ -98,8 +99,10 @@ class H3Pod:
         pod = get_podman().pods.get(self.name)
         binding = pod.attrs["InfraConfig"]["PortBindings"]["51371/tcp"][0]
         ip = binding["HostIp"]
-        port = binding["HostPort"]
-        return H3PodInfo(self._master.info(), self._worker.info(), ip, port)
+        port = int(binding["HostPort"])
+        master = self._master.info()
+        worker = self._master.info()
+        return H3PodInfo.create(master, worker, ip, port)
 
 
 @dataclass
@@ -107,7 +110,18 @@ class H3PodInfo:
     master: H3ContainerInfo
     worker: H3ContainerInfo
     ip: str
-    port: str
+    port: int
+    health: Health
+
+    @classmethod
+    def create(
+        cls, master: H3ContainerInfo, worker: H3ContainerInfo, ip: str, port: int
+    ):
+        failing_streak = max(master.health.failing_streak, worker.health.failing_streak)
+        status = master.health.status
+        if status == "healthy":
+            status = worker.health.status
+        return cls(master, worker, ip, port, Health(status, failing_streak))
 
     def asdict(self):
         return asdict(self)

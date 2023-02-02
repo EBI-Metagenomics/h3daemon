@@ -9,11 +9,12 @@ from podman.domain.images import Image
 from podman.domain.pods import Pod
 
 from h3daemon.errors import EarlyExitError
+from h3daemon.health import Health
 from h3daemon.hmmfile import HMMFile
 from h3daemon.namespace import Namespace
 from h3daemon.podman import get_podman
 
-__all__ = ["H3Container", "H3ContainerInfo", "H3ContainerHealth"]
+__all__ = ["H3Container", "H3ContainerInfo"]
 
 
 class H3Container(ABC):
@@ -90,7 +91,7 @@ class H3Container(ABC):
     def info(self):
         x = self.container.attrs["State"]
         y = x["Health"]
-        health = H3ContainerHealth(y["Status"], int(y["FailingStreak"]))
+        health = Health(y["Status"], int(y["FailingStreak"]))
         return H3ContainerInfo(
             x["Status"],
             bool(x["Running"]),
@@ -123,24 +124,11 @@ class H3ContainerInfo:
     running: bool
     paused: bool
     exit_code: int
-    health: H3ContainerHealth
+    health: Health
 
     @property
     def exited(self) -> bool:
         return self.status == "exited"
-
-    def asdict(self):
-        return asdict(self)
-
-
-@dataclass
-class H3ContainerHealth:
-    status: str
-    failing_streak: int
-
-    @property
-    def healthy(self):
-        return self.status == "healthy"
 
     def asdict(self):
         return asdict(self)
