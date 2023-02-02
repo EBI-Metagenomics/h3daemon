@@ -1,43 +1,44 @@
 from __future__ import annotations
 
 import json
-from enum import IntEnum
 from pathlib import Path
 from typing import Optional
 
 import typer
-from podman.errors import APIError, NotFound
+from podman.errors import APIError
 
+from h3daemon.errors import EarlyExitError
 from h3daemon.hmmfile import HMMFile
+from h3daemon.hmmpress import hmmpress
 from h3daemon.manager import H3Manager
 from h3daemon.meta import __version__
 from h3daemon.namespace import Namespace
+from h3daemon.pod import H3Pod
 
 __all__ = ["app"]
 
 
-class EXIT_CODE(IntEnum):
-    SUCCESS = 0
-    FAILURE = 1
-
-
-app = typer.Typer(add_completion=False)
+app = typer.Typer(
+    add_completion=False,
+    pretty_exceptions_short=True,
+    pretty_exceptions_show_locals=False,
+)
 
 
 @app.callback(invoke_without_command=True)
 def cli(version: Optional[bool] = typer.Option(None, "--version", is_eager=True)):
     if version:
-        print(__version__)
+        typer.echo(__version__)
         raise typer.Exit()
 
 
 @app.command()
-def system():
+def sys():
     """
     Show Podman information.
     """
     with H3Manager() as h3:
-        x = h3.system()
+        x = h3.sys()
         typer.echo(f"Release: {x.release}")
         typer.echo(f"Compatible API: {x.compatible_api}")
         typer.echo(f"Podman API: {x.podman_api}")
@@ -48,13 +49,9 @@ def info(namespace: str):
     """
     Show namespace information.
     """
-    with H3Manager() as h3:
-        ns = Namespace(namespace)
-        try:
-            typer.echo(json.dumps(h3.info(ns).asdict(), indent=2))
-        except NotFound:
-            typer.secho(f"Pod {ns} not found", fg=typer.colors.RED, bold=True)
-            raise typer.Exit(EXIT_CODE.FAILURE)
+    with H3Manager():
+        pod = H3Pod(namespace=Namespace(namespace))
+        typer.echo(json.dumps(pod.info().asdict(), indent=2))
 
 
 @app.command()
@@ -66,12 +63,17 @@ def stop(
     Stop namespace.
     """
     with H3Manager() as h3:
+        namespaces = []
         if all:
             assert not namespace
-            h3.stop_all()
+            namespaces += h3.namespaces()
         else:
             assert namespace
-            h3.stop(Namespace(namespace))
+            namespaces.append(Namespace(namespace))
+
+        for ns in namespaces:
+            pod = H3Pod(namespace=ns)
+            pod.stop()
 
 
 @app.command()
@@ -82,28 +84,6 @@ def ls():
     with H3Manager() as h3:
         for ns in h3.namespaces():
             typer.echo(str(ns))
-
-
-def rich_state(state: str):
-    if state == "running":
-        return typer.style("✔", fg=typer.colors.GREEN) + " running"
-    return typer.style("✘", fg=typer.colors.RED) + f" {state}"
-
-
-@app.command()
-def state(namespace: str):
-    """
-    Show namespace state.
-    """
-    with H3Manager() as h3:
-        ns = Namespace(namespace)
-        try:
-            st = h3.state(ns)
-            typer.echo("Master: " + rich_state(st.master))
-            typer.echo("Worker: " + rich_state(st.worker))
-        except NotFound:
-            typer.secho(f"Pod {ns} not found", fg=typer.colors.RED, bold=True)
-            raise typer.Exit(EXIT_CODE.FAILURE)
 
 
 @app.command()
@@ -122,15 +102,18 @@ def start(
     with H3Manager() as h3:
         x = HMMFile(hmmfile)
         try:
-            pod = h3.start(x, port, force)
+            pod = H3Pod(hmmfile=x)
+            if force:
+                pod.stop()
+            pod.start(port)
             typer.echo(f"Daemon started listening at {pod.host_ip}:{pod.host_port}")
-        except APIError as err:
-            if err.status_code == 409:
-                msg = f"Pod and/or containers within the namespace {x.namespace} already exist."
-                typer.secho(msg, fg=typer.colors.RED, bold=True)
-                raise typer.Exit(EXIT_CODE.FAILURE)
+        except APIError as excp:
+            if excp.status_code != 409:
+                h3.rm_quietly(x.namespace)
+            raise excp
+        except EarlyExitError as excp:
             h3.rm_quietly(x.namespace)
-            raise err
+            raise excp
 
 
 @app.command()
@@ -138,5 +121,5 @@ def press(hmmfile: Path):
     """
     Press hmmer3 ASCII file.
     """
-    with H3Manager() as h3:
-        h3.hmmpress(HMMFile(hmmfile))
+    with H3Manager():
+        hmmpress(HMMFile(hmmfile))
