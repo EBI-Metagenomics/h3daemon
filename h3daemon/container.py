@@ -90,7 +90,7 @@ class H3Container(ABC):
 
     def info(self):
         x = self.container.attrs["State"]
-        y = x["Health"]
+        y = x.get("Health", x.get("Healthcheck"))
         health = Health(y["Status"], int(y["FailingStreak"]))
         return H3ContainerInfo(
             x["Status"],

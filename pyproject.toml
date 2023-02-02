@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "h3daemon"
-version = "0.7.2"
+version = "0.7.3"
 description = "Run HMMER daemon on containers"
 authors = ["Danilo Horta <danilo.horta@pm.me>"]
 license = "MIT"
