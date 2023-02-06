@@ -1,19 +1,19 @@
 from __future__ import annotations
 
+import importlib.metadata
 import json
 from pathlib import Path
 from typing import Optional
 
 import typer
-from typer import echo
 from podman.errors import APIError
 from rich.progress import Progress, SpinnerColumn
+from typer import echo
 
 from h3daemon.errors import EarlyExitError
 from h3daemon.hmmfile import HMMFile
 from h3daemon.hmmpress import hmmpress
 from h3daemon.manager import H3Manager
-from h3daemon.meta import __version__
 from h3daemon.namespace import Namespace
 from h3daemon.pod import H3Pod
 
@@ -30,7 +30,7 @@ app = typer.Typer(
 @app.callback(invoke_without_command=True)
 def cli(version: Optional[bool] = typer.Option(None, "--version", is_eager=True)):
     if version:
-        echo(__version__)
+        echo(importlib.metadata.version(__package__))
         raise typer.Exit()
 
 
