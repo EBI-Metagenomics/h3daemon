@@ -133,7 +133,7 @@ def start(
 @app.command()
 def press(hmmfile: Path):
     """
-    Press hmmer3 ASCII file.
+    Press HMMER ASCII file.
     """
     with H3Manager():
         hmmpress(HMMFile(hmmfile))

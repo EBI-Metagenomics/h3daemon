@@ -5,6 +5,7 @@ from h3daemon.hmmfile import HMMFile
 from h3daemon.images import H3WORKER_IMAGE
 from h3daemon.namespace import Namespace
 from h3daemon.podman import get_podman
+from typing import Union
 
 HEALTHCHECK = {
     "Test": ["CMD-SHELL", "healthcheck || exit 1"],
@@ -19,7 +20,9 @@ __all__ = ["Worker"]
 
 class Worker(H3Container):
     def __init__(
-        self, hmmfile: HMMFile | None = None, namespace: Namespace | None = None
+        self,
+        hmmfile: Union[HMMFile, None] = None,
+        namespace: Union[Namespace, None] = None,
     ):
         super().__init__(hmmfile=hmmfile, namespace=namespace)
 

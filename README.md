@@ -33,8 +33,9 @@ pipx ensurepath
 Install Python and Podman:
 
 ```sh
-sudo apt update && sudo apt install python3 python3-pip python3-venv podman
-python3 -m pip install --user pipx
+sudo apt update && \
+    sudo apt install python3 python3-pip python3-venv podman --yes && \
+    python3 -m pip install --user pipx
 ```
 
 Ensure that your `PATH` environment variable is all set:
@@ -48,7 +49,7 @@ python3 -m pipx ensurepath
 ## 📦 Install
 
 ```sh
-pipx install deciphon
+pipx install h3daemon
 ```
 
 ## Usage

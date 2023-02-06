@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from time import sleep
+from typing import Union
 
 from podman.domain.containers import Container
 from podman.domain.images import Image
@@ -19,12 +20,14 @@ __all__ = ["H3Container", "H3ContainerInfo"]
 
 class H3Container(ABC):
     def __init__(
-        self, hmmfile: HMMFile | None = None, namespace: Namespace | None = None
+        self,
+        hmmfile: Union[HMMFile, None] = None,
+        namespace: Union[Namespace, None] = None,
     ):
-        self._hmmfile: HMMFile | None = hmmfile
-        self._namespace: Namespace | None = namespace
-        self._container: Container | None = None
-        self._image: Image | None = None
+        self._hmmfile: Union[HMMFile, None] = hmmfile
+        self._namespace: Union[Namespace, None] = namespace
+        self._container: Union[Container, None] = None
+        self._image: Union[Image, None] = None
 
     @property
     def hmmfile(self):

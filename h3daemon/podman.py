@@ -1,8 +1,9 @@
 from podman import PodmanClient
+from typing import Union
 
 __all__ = ["get_podman", "connect_podman", "close_podman", "is_uri_online"]
 
-_podman: PodmanClient | None = None
+_podman: Union[PodmanClient, None] = None
 
 
 def get_podman():

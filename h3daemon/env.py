@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+from typing import Union
 from dotenv import load_dotenv
 
 __all__ = ["Env", "get_env"]
@@ -11,7 +12,7 @@ __all__ = ["Env", "get_env"]
 
 @dataclass
 class Env:
-    H3DAEMON_URI: str | None
+    H3DAEMON_URI: Union[str, None]
 
 
 @lru_cache
