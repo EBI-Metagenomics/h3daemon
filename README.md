@@ -53,8 +53,49 @@ pipx install deciphon
 
 ## Usage
 
+```
+ Usage: h3daemon [OPTIONS] COMMAND [ARGS]...
+
+╭─ Options ─────────────────────────────────────────────────────╮
+│ --version                                                     │
+│ --help             Show this message and exit.                │
+╰───────────────────────────────────────────────────────────────╯
+╭─ Commands ────────────────────────────────────────────────────╮
+│ info        Show namespace information.                       │
+│ ls          List namespaces.                                  │
+│ press       Press hmmer3 ASCII file.                          │
+│ start       Start daemon.                                     │
+│ stop        Stop namespace.                                   │
+│ sys         Show Podman information.                          │
+╰───────────────────────────────────────────────────────────────╯
+```
+
+### Example
+
+Download `minifam.hmm` database:
+
 ```sh
-h3daemon --help
+pipx run blx get \
+  fe305d9c09e123f987f49b9056e34c374e085d8831f815cc73d8ea4cdec84960 \
+  minifam.hmm
+```
+
+Press it:
+
+```sh
+h3daemon press minifam.hmm
+```
+
+Start the daemon to listen on a random (available) port:
+
+```sh
+h3daemon start minifam.hmm
+```
+
+And stop it:
+
+```sh
+h3daemon stop minifam.hmm
 ```
 
 ## 👤 Author
