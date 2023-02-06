@@ -135,5 +135,7 @@ def press(hmmfile: Path):
     """
     Press HMMER ASCII file.
     """
-    with H3Manager():
-        hmmpress(HMMFile(hmmfile))
+    with Progress(SpinnerColumn(), transient=True) as progress:
+        progress.add_task(description="", total=None)
+        with H3Manager():
+            hmmpress(HMMFile(hmmfile))

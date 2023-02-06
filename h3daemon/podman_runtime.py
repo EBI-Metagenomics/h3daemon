@@ -1,35 +1,58 @@
 import sys
+from functools import lru_cache
 from json import loads
 from shutil import which
-from subprocess import check_output, check_call, CalledProcessError, run
-from functools import lru_cache
+from subprocess import DEVNULL, check_output, run
+
+from packaging.version import parse as parse_version
 from typer import get_binary_stream
 
 __all__ = ["PodmanRuntime"]
-
-
-HINT = "HINT: Set the H3DAEMON_URI environment variable."
 
 
 class PodmanRuntime:
     def __init__(self):
         self.stdout = get_binary_stream("stdout")
         self.stderr = get_binary_stream("stderr")
-        self._prog = which("podman")
-        if not self._prog:
-            raise RuntimeError(f"Could not find Podman executable. {HINT}")
+        self.minimum_version = "3.4"
+        self._assert_minimum_podman_version()
+
+    @property
+    @lru_cache
+    def podman_version(self):
+        out = check_output([self.podman, "--version"]).decode()
+        return out.split(" ", 2)[2]
+
+    @property
+    @lru_cache
+    def podman(self):
+        x = which("podman")
+        if not x:
+            raise RuntimeError("Could not find Podman executable.")
+        return x
+
+    def _assert_minimum_podman_version(self):
+        out = check_output([self.podman, "--version"]).decode()
+        version = parse_version(out.split(" ", 2)[2])
+        if version < parse_version(self.minimum_version):
+            raise RuntimeError(
+                f"Installed Podman is too old: {version} < {self.minimum_version}."
+            )
 
     @property
     @lru_cache
     def systemctl(self):
-        return which("systemctl")
+        x = which("systemctl")
+        if not x:
+            raise RuntimeError("Could not find systemctl executable.")
+        return x
 
     @property
     def _machine_name(self):
         return "podman-machine-default"
 
     def _is_there_default_vm(self):
-        cmd = [self._prog, "machine", "list", "--format", "json"]
+        cmd = [self.podman, "machine", "list", "--format", "json"]
         out = check_output(cmd, shell=False).decode()
         for i in loads(out):
             if i["Name"] == self._machine_name:
@@ -37,32 +60,24 @@ class PodmanRuntime:
         return False
 
     def _machine_inspect(self):
-        cmd = [self._prog, "machine", "inspect", self._machine_name]
+        cmd = [self.podman, "machine", "inspect", self._machine_name]
         out = check_output(cmd, shell=False).decode()
         return loads(out)[0]
 
     def _machine_init(self):
-        cmd = [self._prog, "machine", "init", self._machine_name]
-        run(cmd, shell=False, check=True)
+        cmd = [self.podman, "machine", "init", self._machine_name]
+        run(cmd, shell=False, check=True, stdout=self.stdout, stderr=self.stderr)
 
     def _machine_start(self):
-        cmd = [self._prog, "machine", "start", self._machine_name]
-        run(cmd, shell=False, check=True)
+        cmd = [self.podman, "machine", "start", self._machine_name]
+        run(cmd, shell=False, check=True, stdout=self.stdout, stderr=self.stderr)
 
     def _is_machine_running(self):
         return self._machine_inspect()["State"] == "running"
 
-    def _is_podman_socket_enabled(self):
-        cmd = [self.systemctl, "--user", "is-enabled", "podman.socket"]
-        try:
-            check_call(cmd, shell=False)
-            return True
-        except CalledProcessError:
-            return False
-
     def _enable_podman_socket(self):
         cmd = [self.systemctl, "--user", "enable", "--now", "podman.socket"]
-        run(cmd, shell=False, check=True)
+        run(cmd, shell=False, check=True, stdout=DEVNULL, stderr=DEVNULL)
 
     def ensure_running(self):
         if sys.platform == "darwin":
@@ -73,20 +88,18 @@ class PodmanRuntime:
             if not self._is_machine_running():
                 raise RuntimeError("Podman VM is not running.")
         else:
-            if not self._is_podman_socket_enabled():
-                self._enable_podman_socket()
+            self._enable_podman_socket()
 
     def api_uri(self):
-        cmd = [self._prog, "system", "connection", "list", "--format=json"]
-        out = check_output(cmd, shell=False).decode()
-        for i in loads(out):
-            if i["Default"]:
-                return i["URI"]
+        if sys.platform == "darwin":
+            cmd = [self.podman, "system", "connection", "list", "--format=json"]
+            out = check_output(cmd, shell=False).decode()
+            for i in loads(out):
+                if i["Default"]:
+                    return i["URI"]
+        else:
+            cmd = [self.podman, "info", "--format", "json"]
+            out = check_output(cmd, shell=False).decode()
+            sock_file = loads(out)["host"]["remoteSocket"]["path"]
+            return f"unix://{str(sock_file)}"
         raise RuntimeError(f"Failed to infer Podman API URI. {HINT}")
-
-    def assert_running_state(self):
-        cmd = [self._prog, "machine", "info", "--format", "json"]
-        out = check_output(cmd, shell=False).decode()
-        x = loads(out)
-        if x["Host"]["MachineState"] != "Running":
-            raise RuntimeError("Podman VM is not running.")

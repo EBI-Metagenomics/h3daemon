@@ -12,6 +12,7 @@ podman = "^4.3.0"
 typer = {extras = ["all"], version = "^0.7.0"}
 python-dotenv = "^0.21.0"
 platformdirs = "^2.6.2"
+packaging = "^23.0"
 
 [build-system]
 requires = ["poetry-core"]
