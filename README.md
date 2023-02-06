@@ -26,12 +26,15 @@ Ensure that your `PATH` environment variable is all set:
 pipx ensurepath
 ```
 
+💡 You might need to close your terminal and reopen it for the changes to take effect.
+
 ### Ubuntu (and Debian-based distros)
 
 Install Python and Podman:
 
 ```sh
 sudo apt update && sudo apt install python3 python3-pip python3-venv podman
+python3 -m pip install --user pipx
 ```
 
 Ensure that your `PATH` environment variable is all set:
@@ -39,6 +42,8 @@ Ensure that your `PATH` environment variable is all set:
 ```sh
 python3 -m pipx ensurepath
 ```
+
+💡 You might need to close your terminal and reopen it for the changes to take effect.
 
 ## 📦 Install
 
