@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from typer import echo
 from podman.errors import APIError
+from rich.progress import Progress, SpinnerColumn
 
 from h3daemon.errors import EarlyExitError
 from h3daemon.hmmfile import HMMFile
@@ -28,7 +30,7 @@ app = typer.Typer(
 @app.callback(invoke_without_command=True)
 def cli(version: Optional[bool] = typer.Option(None, "--version", is_eager=True)):
     if version:
-        typer.echo(__version__)
+        echo(__version__)
         raise typer.Exit()
 
 
@@ -39,9 +41,9 @@ def sys():
     """
     with H3Manager() as h3:
         x = h3.sys()
-        typer.echo(f"Release: {x.release}")
-        typer.echo(f"Compatible API: {x.compatible_api}")
-        typer.echo(f"Podman API: {x.podman_api}")
+        echo(f"Release: {x.release}")
+        echo(f"Compatible API: {x.compatible_api}")
+        echo(f"Podman API: {x.podman_api}")
 
 
 @app.command()
@@ -51,7 +53,7 @@ def info(namespace: str):
     """
     with H3Manager():
         pod = H3Pod(namespace=Namespace(namespace))
-        typer.echo(json.dumps(pod.info().asdict(), indent=2))
+        echo(json.dumps(pod.info().asdict(), indent=2))
 
 
 @app.command()
@@ -62,18 +64,20 @@ def stop(
     """
     Stop namespace.
     """
-    with H3Manager() as h3:
-        namespaces = []
-        if all:
-            assert not namespace
-            namespaces += h3.namespaces()
-        else:
-            assert namespace
-            namespaces.append(Namespace(namespace))
+    with Progress(SpinnerColumn(), transient=True) as progress:
+        progress.add_task(description="", total=None)
+        with H3Manager() as h3:
+            namespaces = []
+            if all:
+                assert not namespace
+                namespaces += h3.namespaces()
+            else:
+                assert namespace
+                namespaces.append(Namespace(namespace))
 
-        for ns in namespaces:
-            pod = H3Pod(namespace=ns)
-            pod.stop()
+            for ns in namespaces:
+                pod = H3Pod(namespace=ns)
+                pod.stop()
 
 
 @app.command()
@@ -83,7 +87,7 @@ def ls():
     """
     with H3Manager() as h3:
         for ns in h3.namespaces():
-            typer.echo(str(ns))
+            echo(str(ns))
 
 
 @app.command()
@@ -99,21 +103,31 @@ def start(
     """
     Start daemon.
     """
-    with H3Manager() as h3:
-        x = HMMFile(hmmfile)
-        try:
-            pod = H3Pod(hmmfile=x)
-            if force and pod.exists():
-                pod.stop()
-            pod.start(port)
-            typer.echo(f"Daemon started listening at {pod.host_ip}:{pod.host_port}")
-        except APIError as excp:
-            if excp.status_code != 409:
+    with Progress(SpinnerColumn(), transient=True) as progress:
+        progress.add_task(description="", total=None)
+        with H3Manager() as h3:
+            x = HMMFile(hmmfile)
+            try:
+                pod = H3Pod(hmmfile=x)
+
+                if not force and pod.exists():
+                    progress.stop()
+                    echo(f"⚠️  {pod.name} is already in used.")
+                    raise typer.Exit(1)
+
+                if force and pod.exists():
+                    pod.stop()
+                pod.start(port)
+                progress.stop()
+                echo(f"🎉 Daemon started listening at {pod.host_ip}:{pod.host_port}")
+
+            except APIError as excp:
+                if excp.status_code != 409:
+                    h3.rm_quietly(x.namespace)
+                raise excp
+            except EarlyExitError as excp:
                 h3.rm_quietly(x.namespace)
-            raise excp
-        except EarlyExitError as excp:
-            h3.rm_quietly(x.namespace)
-            raise excp
+                raise excp
 
 
 @app.command()
