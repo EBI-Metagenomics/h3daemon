@@ -1,7 +1,8 @@
 import sys
 from json import loads
 from shutil import which
-from subprocess import check_output, check_call
+from subprocess import check_output, check_call, CalledProcessError, run
+from functools import lru_cache
 from typer import get_binary_stream
 
 __all__ = ["PodmanRuntime"]
@@ -17,6 +18,11 @@ class PodmanRuntime:
         self._prog = which("podman")
         if not self._prog:
             raise RuntimeError(f"Could not find Podman executable. {HINT}")
+
+    @property
+    @lru_cache
+    def systemctl(self):
+        return which("systemctl")
 
     @property
     def _machine_name(self):
@@ -37,14 +43,26 @@ class PodmanRuntime:
 
     def _machine_init(self):
         cmd = [self._prog, "machine", "init", self._machine_name]
-        check_call(cmd, shell=False, stdout=self.stdout, stderr=self.stderr)
+        run(cmd, shell=False, check=True)
 
     def _machine_start(self):
         cmd = [self._prog, "machine", "start", self._machine_name]
-        check_call(cmd, shell=False, stdout=self.stdout, stderr=self.stderr)
+        run(cmd, shell=False, check=True)
 
     def _is_machine_running(self):
         return self._machine_inspect()["State"] == "running"
+
+    def _is_podman_socket_enabled(self):
+        cmd = [self.systemctl, "--user", "is-enabled", "podman.socket"]
+        try:
+            check_call(cmd, shell=False)
+            return True
+        except CalledProcessError:
+            return False
+
+    def _enable_podman_socket(self):
+        cmd = [self.systemctl, "--user", "enable", "--now", "podman.socket"]
+        run(cmd, shell=False, check=True)
 
     def ensure_running(self):
         if sys.platform == "darwin":
@@ -54,6 +72,9 @@ class PodmanRuntime:
                 self._machine_start()
             if not self._is_machine_running():
                 raise RuntimeError("Podman VM is not running.")
+        else:
+            if not self._is_podman_socket_enabled():
+                self._enable_podman_socket()
 
     def api_uri(self):
         cmd = [self._prog, "system", "connection", "list", "--format=json"]
