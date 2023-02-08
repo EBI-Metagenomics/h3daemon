@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Union
 
 from dataclasses import asdict, dataclass
 
@@ -26,11 +27,13 @@ PORTMAPPING = {
 
 class H3Pod:
     def __init__(
-        self, hmmfile: HMMFile | None = None, namespace: Namespace | None = None
+        self,
+        hmmfile: Union[HMMFile, None] = None,
+        namespace: Union[Namespace, None] = None,
     ):
-        self._hmmfile: HMMFile | None = hmmfile
-        self._namespace: Namespace | None = namespace
-        self._pod: Pod | None = None
+        self._hmmfile: Union[HMMFile, None] = hmmfile
+        self._namespace: Union[Namespace, None] = namespace
+        self._pod: Union[Pod, None] = None
         self._master = Master(hmmfile=hmmfile, namespace=namespace)
         self._worker = Worker(hmmfile=hmmfile, namespace=namespace)
 

@@ -1,14 +1,17 @@
 from __future__ import annotations
-from platformdirs import user_runtime_dir
-from pathlib import Path
 
 import signal
 from dataclasses import dataclass
+from pathlib import Path
 
+from platformdirs import user_runtime_dir
 from podman.errors import APIError
 
 from h3daemon.env import get_env
+from h3daemon.errors import EarlyExitError, PodInUseError
+from h3daemon.hmmfile import HMMFile
 from h3daemon.namespace import Namespace
+from h3daemon.pod import H3Pod
 from h3daemon.podman import close_podman, connect_podman, get_podman, is_uri_online
 from h3daemon.podman_runtime import PodmanRuntime
 
@@ -37,6 +40,36 @@ class H3Manager:
     def close(self):
         close_podman()
 
+    def start_daemon(
+        self,
+        hmmfile: HMMFile,
+        port: int = 0,
+        force: bool = False,
+    ):
+        pod = H3Pod(hmmfile)
+        try:
+            if not force and pod.exists():
+                raise PodInUseError(pod.name)
+            if force and pod.exists():
+                pod.stop()
+
+            pod.start(port)
+
+        except APIError as excp:
+            if excp.status_code != 409:
+                self.rm_quietly(pod.namespace)
+            raise excp
+
+        except EarlyExitError as excp:
+            self.rm_quietly(pod.namespace)
+            raise excp
+
+        return pod
+
+    def stop_daemon(self, namespace: Namespace):
+        pod = H3Pod(namespace=namespace)
+        pod.stop()
+
     def _try_user_sock_file(self):
         sock_file = (Path(user_runtime_dir("podman")) / "podman.sock").resolve()
         uri = f"unix://{str(sock_file)}"
@@ -60,10 +93,7 @@ class H3Manager:
         connect_podman(uri)
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
-        del exc_type
-        del exc_value
-        del traceback
+    def __exit__(self, *_) -> None:
         self.close()
 
     def rm_quietly(self, ns: Namespace):

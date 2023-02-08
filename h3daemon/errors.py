@@ -1,6 +1,14 @@
-__all__ = ["EarlyExitError"]
+__all__ = ["EarlyExitError", "PodInUseError"]
 
 
-class EarlyExitError(Exception):
-    def __init__(self, message: str):
-        super().__init__(message)
+class EarlyExitError(RuntimeError):
+    def __init__(self, msg: str):
+        super().__init__(msg)
+        self.msg = msg
+
+
+class PodInUseError(RuntimeError):
+    def __init__(self, pod_name: str):
+        msg = f"⚠️  {pod_name} is already in used."
+        super().__init__(msg)
+        self.msg = msg

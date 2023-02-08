@@ -2,18 +2,23 @@ import sys
 from functools import lru_cache
 from json import loads
 from shutil import which
-from subprocess import DEVNULL, check_output, run
+from subprocess import (
+    DEVNULL,
+    PIPE,
+    STDOUT,
+    CalledProcessError,
+    Popen,
+    check_output,
+    run,
+)
 
 from packaging.version import parse as parse_version
-from typer import get_binary_stream
 
 __all__ = ["PodmanRuntime"]
 
 
 class PodmanRuntime:
     def __init__(self):
-        self.stdout = get_binary_stream("stdout")
-        self.stderr = get_binary_stream("stderr")
         self.minimum_version = "3.4"
         self._assert_minimum_podman_version()
 
@@ -35,9 +40,8 @@ class PodmanRuntime:
         out = check_output([self.podman, "--version"]).decode()
         version = parse_version(out.split(" ", 2)[2])
         if version < parse_version(self.minimum_version):
-            raise RuntimeError(
-                f"Installed Podman is too old: {version} < {self.minimum_version}."
-            )
+            msg = f"Installed Podman is too old: {version} < {self.minimum_version}."
+            raise RuntimeError(msg)
 
     @property
     @lru_cache
@@ -66,11 +70,21 @@ class PodmanRuntime:
 
     def _machine_init(self):
         cmd = [self.podman, "machine", "init", self._machine_name]
-        run(cmd, shell=False, check=True, stdout=self.stdout, stderr=self.stderr)
+        with Popen(cmd, shell=False, stdout=PIPE, stderr=STDOUT, text=True) as proc:
+            assert proc.stdout
+            for data in proc.stdout:
+                print(data, end="")
+        if proc.returncode:
+            raise CalledProcessError(proc.returncode, cmd)
 
     def _machine_start(self):
         cmd = [self.podman, "machine", "start", self._machine_name]
-        run(cmd, shell=False, check=True, stdout=self.stdout, stderr=self.stderr)
+        with Popen(cmd, shell=False, stdout=PIPE, stderr=STDOUT, text=True) as proc:
+            assert proc.stdout
+            for data in proc.stdout:
+                print(data, end="")
+        if proc.returncode:
+            raise CalledProcessError(proc.returncode, cmd)
 
     def _is_machine_running(self):
         return self._machine_inspect()["State"] == "running"
@@ -102,4 +116,4 @@ class PodmanRuntime:
             out = check_output(cmd, shell=False).decode()
             sock_file = loads(out)["host"]["remoteSocket"]["path"]
             return f"unix://{str(sock_file)}"
-        raise RuntimeError(f"Failed to infer Podman API URI. {HINT}")
+        raise RuntimeError("Failed to infer Podman API URI.")

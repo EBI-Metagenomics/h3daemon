@@ -6,11 +6,10 @@ from pathlib import Path
 from typing import Optional
 
 import typer
-from podman.errors import APIError
 from rich.progress import Progress, SpinnerColumn
 from typer import echo
 
-from h3daemon.errors import EarlyExitError
+from h3daemon.errors import PodInUseError
 from h3daemon.hmmfile import HMMFile
 from h3daemon.hmmpress import hmmpress
 from h3daemon.manager import H3Manager
@@ -76,8 +75,7 @@ def stop(
                 namespaces.append(Namespace(namespace))
 
             for ns in namespaces:
-                pod = H3Pod(namespace=ns)
-                pod.stop()
+                h3.stop_daemon(ns)
 
 
 @app.command()
@@ -106,28 +104,12 @@ def start(
     with Progress(SpinnerColumn(), transient=True) as progress:
         progress.add_task(description="", total=None)
         with H3Manager() as h3:
-            x = HMMFile(hmmfile)
             try:
-                pod = H3Pod(hmmfile=x)
-
-                if not force and pod.exists():
-                    progress.stop()
-                    echo(f"⚠️  {pod.name} is already in used.")
-                    raise typer.Exit(1)
-
-                if force and pod.exists():
-                    pod.stop()
-                pod.start(port)
-                progress.stop()
-                echo(f"🎉 Daemon started listening at {pod.host_ip}:{pod.host_port}")
-
-            except APIError as excp:
-                if excp.status_code != 409:
-                    h3.rm_quietly(x.namespace)
-                raise excp
-            except EarlyExitError as excp:
-                h3.rm_quietly(x.namespace)
-                raise excp
+                pod = h3.start_daemon(HMMFile(hmmfile), port, force)
+            except PodInUseError as excp:
+                echo(excp.msg)
+                raise typer.Exit(1)
+    echo(f"🎉 Daemon started listening at {pod.host_ip}:{pod.host_port}")
 
 
 @app.command()
