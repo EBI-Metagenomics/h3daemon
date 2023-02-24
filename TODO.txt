@@ -1,0 +1,2 @@
+- If the port is already in use, the daemon will die but its children wont (it seems),
+without reporting the error to the user.

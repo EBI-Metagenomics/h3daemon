@@ -27,6 +27,9 @@ app = typer.Typer(
 O_VERSION = typer.Option(None, "--version", is_eager=True)
 O_PORT = typer.Option(0, help="Port to listen to.")
 O_ALL = typer.Option(False, "--all")
+O_STDIN = typer.Option(None, "--stdin")
+O_STDOUT = typer.Option(None, "--stdout")
+O_STDERR = typer.Option(None, "--stderr")
 
 
 @app.callback(invoke_without_command=True)
@@ -37,7 +40,13 @@ def cli(version: Optional[bool] = O_VERSION):
 
 
 @app.command()
-def start(hmmfile: Path, port: int = O_PORT):
+def start(
+    hmmfile: Path,
+    port: int = O_PORT,
+    stdin: Optional[Path] = O_STDIN,
+    stdout: Optional[Path] = O_STDOUT,
+    stderr: Optional[Path] = O_STDERR,
+):
     """
     Start daemon.
     """
@@ -55,7 +64,11 @@ def start(hmmfile: Path, port: int = O_PORT):
 
     workdir = str(hmmfile.parent)
     pidfile = PIDLockFile(hmmfile.name + ".pid")
-    with DaemonContext(working_directory=workdir, pidfile=pidfile):
+    ctx = DaemonContext(working_directory=workdir, pidfile=pidfile)
+    ctx.stdin = open(stdin, "r") if stdin else stdin
+    ctx.stdout = open(stdout, "w+") if stdout else stdout
+    ctx.stderr = open(stderr, "w+") if stderr else stderr
+    with ctx:
         daemon = H3Daemon(port, hmmfile.name)
         daemon.run()
 
