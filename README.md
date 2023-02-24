@@ -1,6 +1,6 @@
 # Welcome to h3daemon 👋
 
-> Command-line for running HMMER server on arm64 and amd64 machines via containers.
+> Command-line for running HMMER server on arm64 and amd64 machines.
 
 ### 🏠 [Homepage](https://github.com/EBI-Metagenomics/h3daemon)
 
@@ -8,16 +8,15 @@
 
 - Python >= 3.9
 - Pip
-- [Podman](https://podman.io) >= 3.4
 - [Homebrew](https://brew.sh) on MacOS (recommended)
 - [Pipx](https://pypa.github.io/pipx/) for Python package management (recommended)
 
 ### MacOS
 
-Install Python and Podman:
+Install Python and Pipx:
 
 ```sh
-brew update && brew install python podman pipx
+brew update && brew install python pipx
 ```
 
 Ensure that your `PATH` environment variable is all set:
@@ -30,11 +29,11 @@ pipx ensurepath
 
 ### Ubuntu (and Debian-based distros)
 
-Install Python and Podman:
+Install Python and Pipx:
 
 ```sh
 sudo apt update && \
-    sudo apt install python3 python3-pip python3-venv podman --yes && \
+    sudo apt install python3 python3-pip python3-venv --yes && \
     python3 -m pip install --user pipx
 ```
 
@@ -62,12 +61,8 @@ pipx install h3daemon
 │ --help             Show this message and exit.                │
 ╰───────────────────────────────────────────────────────────────╯
 ╭─ Commands ────────────────────────────────────────────────────╮
-│ info        Show namespace information.                       │
-│ ls          List namespaces.                                  │
-│ press       Press hmmer3 ASCII file.                          │
-│ start       Start daemon.                                     │
-│ stop        Stop namespace.                                   │
-│ sys         Show Podman information.                          │
+│ start                 Start daemon.                           │
+│ stop                  Stop daemon.                            │
 ╰───────────────────────────────────────────────────────────────╯
 ```
 
@@ -84,7 +79,7 @@ pipx run blx get \
 Press it:
 
 ```sh
-h3daemon press minifam.hmm
+pipx run --spec hmmer hmmpress minifam.hmm
 ```
 
 Start the daemon to listen on a random (available) port:

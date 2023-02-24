@@ -18,7 +18,11 @@ from h3daemon import H3Daemon
 __all__ = ["app"]
 
 
-app = typer.Typer(add_completion=False)
+app = typer.Typer(
+    add_completion=False,
+    pretty_exceptions_short=True,
+    pretty_exceptions_show_locals=False,
+)
 
 O_VERSION = typer.Option(None, "--version", is_eager=True)
 O_PORT = typer.Option(0, help="Port to listen to.")
