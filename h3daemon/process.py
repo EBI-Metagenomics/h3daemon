@@ -51,7 +51,7 @@ def _get_port(proc: psutil.Process):
 
 def wait_for_port(pid: int) -> int:
     proc = psutil.Process(pid)
-    for _ in range(10):
+    for _ in range(50):
         try:
             return _get_port(proc)
         except AssertionError:
