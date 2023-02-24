@@ -14,6 +14,7 @@ from daemon.pidfile import PIDLockFile
 from typer import echo
 
 from h3daemon import H3Daemon
+from h3daemon.process import wait_for_port
 
 __all__ = ["app"]
 
@@ -90,6 +91,18 @@ def stop(hmmfile: Optional[Path] = typer.Argument(None), all: bool = O_ALL):
         raise ValueError(f"`{hmmfile}` does not exist.")
 
     os.kill(read_pidfile(str(hmmfile) + ".pid"), signal.SIGTERM)
+
+
+@app.command()
+def port(hmmfile: Optional[Path] = typer.Argument(None)):
+    """
+    Get port or fail.
+    """
+    pid = int(read_pidfile(str(hmmfile) + ".pid"))
+    port = wait_for_port(pid)
+    if port == -1:
+        raise typer.Exit(1)
+    echo(f"{port}")
 
 
 def stop_all():
