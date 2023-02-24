@@ -1,18 +1,17 @@
 [tool.poetry]
 name = "h3daemon"
-version = "0.7.6"
-description = "Run HMMER daemon on containers"
+version = "0.8.0"
+description = "HMMER server"
 authors = ["Danilo Horta <danilo.horta@pm.me>"]
 license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-podman = "^4.3.0"
-typer = {extras = ["all"], version = "^0.7.0"}
-python-dotenv = "^0.21.0"
-platformdirs = "^2.6.2"
-packaging = "^23.0"
+typer = ">=0.7.0"
+hmmer = ">=0.2.1"
+python-daemon = ">=2.3.2"
+psutil = ">=5.9.4"
 
 [build-system]
 requires = ["poetry-core"]
