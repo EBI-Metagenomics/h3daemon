@@ -54,7 +54,7 @@ def start(hmmfile: Path, port: int = O_PORT):
             raise ValueError(f"`{filename.name}` must exist as well.")
 
     workdir = str(hmmfile.parent)
-    pidfile = PIDLockFile(str(hmmfile) + ".pid")
+    pidfile = PIDLockFile(hmmfile.name + ".pid")
     with DaemonContext(working_directory=workdir, pidfile=pidfile):
         daemon = H3Daemon(port, hmmfile.name)
         daemon.run()
