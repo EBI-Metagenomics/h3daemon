@@ -5,10 +5,11 @@ import time
 from contextlib import closing
 from functools import partial
 from pathlib import Path
-from subprocess import DEVNULL, Popen, check_output
+from subprocess import Popen
 from typing import Callable, Optional
 
 import hmmer
+import psutil
 
 __all__ = ["H3Daemon"]
 
@@ -18,28 +19,30 @@ def check_socket(cport: int):
         return sock.connect_ex(("127.0.0.1", cport)) == 0
 
 
-def is_master_ready(proc: Popen, cport: int, wport: int):
-    out = check_output(["lsof", "-p", str(proc.pid)], stderr=DEVNULL).decode()
-    cport_listen = False
-    wport_listen = False
-    for x in out.split("\n"):
-        if "TCP" in x and f":{cport}" in x and "LISTEN" in x:
-            cport_listen = True
-        if "TCP" in x and f":{wport}" in x and "LISTEN" in x:
-            wport_listen = True
-    return cport_listen and wport_listen and check_socket(cport) and proc.poll() is None
-
-
-def is_worker_ready(proc: Popen):
-    out = check_output(["lsof", "-p", str(proc.pid)], stderr=DEVNULL).decode()
-    for x in out.split("\n"):
-        if "TCP" in x and "ESTABLISHED" in x:
-            return proc.poll() is None
+def is_listening(pid: int, port: int):
+    for x in psutil.Process(pid).connections(kind="tcp"):
+        if x.status == "LISTEN" and x.laddr.port == port:
+            return True
     return False
 
 
+def has_connected(pid: int):
+    for x in psutil.Process(pid).connections(kind="tcp"):
+        if x.status == "ESTABLISHED":
+            return True
+    return False
+
+
+def is_master_ready(proc: Popen, cport: int):
+    return is_listening(proc.pid, cport) and check_socket(cport) and proc.poll() is None
+
+
+def is_worker_ready(proc: Popen):
+    return has_connected(proc.pid) and proc.poll() is None
+
+
 def wait_until_ready(check_ready: Callable[[], bool]):
-    for _ in range(5):
+    for _ in range(50):
         if check_ready():
             return True
         time.sleep(0.1)
@@ -91,7 +94,7 @@ class H3Daemon:
         wport = find_free_port()
 
         master = spawn_master(cport, wport, self._hmmfile)
-        if not wait_until_ready(partial(is_master_ready, master, cport, wport)):
+        if not wait_until_ready(partial(is_master_ready, master, cport)):
             master.terminate()
             sys.exit(master.wait())
 

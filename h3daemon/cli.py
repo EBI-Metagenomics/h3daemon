@@ -10,7 +10,7 @@ from typing import Optional
 import psutil
 import typer
 from daemon import DaemonContext
-from daemon.pidfile import PIDLockFile
+from pidlockfile import PIDLockFile
 from typer import echo
 
 from h3daemon import H3Daemon
@@ -64,7 +64,7 @@ def start(
             raise ValueError(f"`{filename.name}` must exist as well.")
 
     workdir = str(hmmfile.parent)
-    pidfile = PIDLockFile(hmmfile.name + ".pid")
+    pidfile = PIDLockFile(hmmfile.name + ".pid", timeout=5)
     ctx = DaemonContext(working_directory=workdir, pidfile=pidfile)
     ctx.stdin = open(stdin, "r") if stdin else stdin
     ctx.stdout = open(stdout, "w+") if stdout else stdout
@@ -115,6 +115,8 @@ def stop_all():
         found = False
         for proc in psutil.process_iter(["pid", "cmdline", "uids"]):
             if proc.uids().real != uid or proc.pid == pid:
+                continue
+            if proc.status() == "zombie":
                 continue
             cmdline = proc.cmdline()
             if len(cmdline) > 1 and cmdline[1] == exe:
