@@ -1,4 +1,3 @@
-import signal
 import socket
 import sys
 import time
@@ -11,7 +10,7 @@ from typing import Callable, Optional
 import hmmer
 import psutil
 
-__all__ = ["H3Daemon"]
+__all__ = ["app_setup", "app_main", "app_terminate"]
 
 
 def check_socket(cport: int):
@@ -20,16 +19,26 @@ def check_socket(cport: int):
 
 
 def is_listening(pid: int, port: int):
-    for x in psutil.Process(pid).connections(kind="tcp"):
-        if x.status == "LISTEN" and x.laddr.port == port:
-            return True
+    try:
+        for x in psutil.Process(pid).connections(kind="tcp"):
+            if x.status == "LISTEN" and x.laddr.port == port:
+                return True
+    except RuntimeError:
+        # Bug to be fixed: https://github.com/giampaolo/psutil/issues/2116
+        time.sleep(0.2)
+        return True
     return False
 
 
 def has_connected(pid: int):
-    for x in psutil.Process(pid).connections(kind="tcp"):
-        if x.status == "ESTABLISHED":
-            return True
+    try:
+        for x in psutil.Process(pid).connections(kind="tcp"):
+            if x.status == "ESTABLISHED":
+                return True
+    except RuntimeError:
+        # Bug to be fixed: https://github.com/giampaolo/psutil/issues/2116
+        time.sleep(0.2)
+        return True
     return False
 
 
@@ -76,39 +85,48 @@ def find_free_port():
     return port
 
 
-class H3Daemon:
-    def __init__(self, port: int, hmm_file: str):
-        self._port = port
-        self._hmmfile = hmm_file
-        self._worker: Optional[Popen] = None
-        self._master: Optional[Popen] = None
+client_port: int = -1
+worker_port: int = -1
+worker: Optional[Popen] = None
+master: Optional[Popen] = None
 
-    def _interrupt_terminate(self, *_):
-        if self._worker:
-            self._worker.terminate()
-        if self._master:
-            self._master.terminate()
 
-    def run(self):
-        cport = find_free_port() if self._port == 0 else self._port
-        wport = find_free_port()
+def app_setup(port: int):
+    global client_port, worker_port
+    client_port = find_free_port() if port == 0 else port
+    worker_port = find_free_port()
 
-        master = spawn_master(cport, wport, self._hmmfile)
-        if not wait_until_ready(partial(is_master_ready, master, cport)):
-            master.terminate()
-            sys.exit(master.wait())
 
-        worker = spawn_worker(wport)
-        if not wait_until_ready(partial(is_worker_ready, worker)):
-            worker.terminate()
-            master.terminate()
-            sys.exit(worker.wait())
+def app_main(hmmfile: str):
+    global client_port, worker_port
+    global worker, master
 
-        self._master = master
-        self._worker = worker
+    master = spawn_master(client_port, worker_port, hmmfile)
+    if not wait_until_ready(partial(is_master_ready, master, client_port)):
+        master.kill()
+        sys.exit(master.wait())
 
-        signal.signal(signal.SIGINT, self._interrupt_terminate)
-        signal.signal(signal.SIGTERM, self._interrupt_terminate)
+    worker = spawn_worker(worker_port)
+    if not wait_until_ready(partial(is_worker_ready, worker)):
+        worker.kill()
+        master.kill()
+        sys.exit(worker.wait())
 
-        self._master.wait()
-        self._worker.wait()
+    open("/Users/horta/code/h3daemon/ponto1.txt", "w").close()
+    procs = [psutil.Process(master.pid), psutil.Process(worker.pid)]
+    open("/Users/horta/code/h3daemon/ponto2.txt", "w").close()
+    while len(psutil.wait_procs(procs, timeout=1)[0]) == 0:
+        open("/Users/horta/code/h3daemon/ponto3.txt", "w").close()
+        pass
+    open("/Users/horta/code/h3daemon/ponto4.txt", "w").close()
+
+    for x in psutil.wait_procs(procs, timeout=3)[1]:
+        x.kill()
+
+
+def app_terminate(*_):
+    global worker, master
+    if worker:
+        worker.terminate()
+    if master:
+        master.terminate()

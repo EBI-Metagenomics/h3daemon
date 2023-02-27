@@ -13,7 +13,7 @@ from daemon import DaemonContext
 from pidlockfile import PIDLockFile
 from typer import echo
 
-from h3daemon import H3Daemon
+from h3daemon.app import app_setup, app_terminate, app_main
 from h3daemon.process import wait_for_port
 
 __all__ = ["app"]
@@ -51,6 +51,8 @@ def start(
     """
     Start daemon.
     """
+    hmmfile = hmmfile.absolute()
+
     if not hmmfile.name.endswith(".hmm"):
         raise ValueError(f"`{hmmfile}` does not end with `.hmm`.")
 
@@ -64,14 +66,15 @@ def start(
             raise ValueError(f"`{filename.name}` must exist as well.")
 
     workdir = str(hmmfile.parent)
-    pidfile = PIDLockFile(hmmfile.name + ".pid", timeout=5)
+    pidfile = PIDLockFile(f"{hmmfile}.pid", timeout=5)
     ctx = DaemonContext(working_directory=workdir, pidfile=pidfile)
     ctx.stdin = open(stdin, "r") if stdin else stdin
     ctx.stdout = open(stdout, "w+") if stdout else stdout
     ctx.stderr = open(stderr, "w+") if stderr else stderr
+    ctx.signal_map = {signal.SIGTERM: app_terminate, signal.SIGINT: app_terminate}
+    app_setup(port)
     with ctx:
-        daemon = H3Daemon(port, hmmfile.name)
-        daemon.run()
+        app_main(str(hmmfile))
 
 
 @app.command()
@@ -84,25 +87,42 @@ def stop(hmmfile: Optional[Path] = typer.Argument(None), all: bool = O_ALL):
         return
 
     assert hmmfile
+    hmmfile = hmmfile.absolute()
+
     if not hmmfile.name.endswith(".hmm"):
         raise ValueError(f"`{hmmfile}` does not end with `.hmm`.")
 
     if not hmmfile.exists():
         raise ValueError(f"`{hmmfile}` does not exist.")
 
-    os.kill(read_pidfile(str(hmmfile) + ".pid"), signal.SIGTERM)
+    pidfile = PIDLockFile(f"{hmmfile}.pid", timeout=5)
+    pid = pidfile.is_locked()
+    if pid:
+        os.kill(pid, signal.SIGTERM)
+    else:
+        echo(f"{hmmfile}: NOT running")
 
 
 @app.command()
-def port(hmmfile: Optional[Path] = typer.Argument(None)):
+def port(hmmfile: Path):
     """
     Get port or fail.
     """
-    pid = int(read_pidfile(str(hmmfile) + ".pid"))
-    port = wait_for_port(pid)
-    if port == -1:
-        raise typer.Exit(1)
-    echo(f"{port}")
+    hmmfile = hmmfile.absolute()
+
+    if not hmmfile.name.endswith(".hmm"):
+        raise ValueError(f"`{hmmfile}` does not end with `.hmm`.")
+
+    if not hmmfile.exists():
+        raise ValueError(f"`{hmmfile}` does not exist.")
+
+    pidfile = PIDLockFile(f"{hmmfile}.pid", timeout=5)
+    pid = pidfile.is_locked()
+    if pid:
+        port = wait_for_port(pid)
+        if port == -1:
+            raise typer.Exit(1)
+        echo(f"{port}")
 
 
 def stop_all():
@@ -123,8 +143,3 @@ def stop_all():
                 proc.terminate()
                 found = True
                 break
-
-
-def read_pidfile(pidfile):
-    with open(pidfile, "r") as file:
-        return int(file.readline().strip())
