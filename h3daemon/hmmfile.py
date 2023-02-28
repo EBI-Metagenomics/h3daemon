@@ -1,11 +1,12 @@
 from pathlib import Path
+
 from pidlockfile import PIDLockFile
 
 __all__ = ["HMMFile"]
 
 
 class HMMFile:
-    def __init__(self, file: Path):
+    def __init__(self, file: Path, pidfile=True):
         self._file = file.absolute()
 
         if not file.name.endswith(".hmm"):
@@ -20,13 +21,17 @@ class HMMFile:
             if not filename.exists():
                 raise ValueError(f"`{filename.name}` must exist as well.")
 
-        self._pidfile = PIDLockFile(f"{self._file}.pid", timeout=5)
+        if pidfile:
+            self._pidfile = PIDLockFile(f"{self._file}.pid", timeout=5)
+        else:
+            self._pidfile = None
 
     def __str__(self):
         return str(self._file)
 
     @property
     def pidfile(self):
+        assert self._pidfile
         return self._pidfile
 
     @property

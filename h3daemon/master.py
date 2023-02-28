@@ -6,7 +6,7 @@ from pathlib import Path
 import hmmer
 import psutil
 
-from h3daemon.socket import can_connect
+from h3daemon.connect import can_connect
 
 __all__ = ["Master"]
 
@@ -14,6 +14,10 @@ __all__ = ["Master"]
 class Master:
     def __init__(self, proc: psutil.Process):
         self._proc = proc
+
+    @property
+    def process(self):
+        return self._proc
 
     @staticmethod
     def cmd(cport: int, wport: int, hmmfile: str):

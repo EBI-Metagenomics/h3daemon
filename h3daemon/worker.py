@@ -25,6 +25,10 @@ class Worker:
     def __init__(self, proc: psutil.Process):
         self._proc = proc
 
+    @property
+    def process(self):
+        return self._proc
+
     @staticmethod
     def cmd(wport: int):
         hmmpgmd = str(Path(hmmer.BIN_DIR) / "hmmpgmd")

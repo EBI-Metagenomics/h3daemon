@@ -9,9 +9,8 @@ import typer
 from typer import echo
 
 from h3daemon.hmmfile import HMMFile
-from h3daemon.polling import wait_until
 from h3daemon.sched import Sched
-from h3daemon.socket import find_free_port
+from h3daemon.connect import find_free_port
 
 __all__ = ["app"]
 
@@ -66,7 +65,7 @@ def start(
     fin = open(stdin, "r") if stdin else stdin
     fout = open(stdout, "w+") if stdout else stdout
     ferr = open(stderr, "w+") if stderr else stderr
-    Sched.spawn(cport, wport, file, fin, fout, ferr, detach)
+    Sched.daemonize(file, cport, wport, fin, fout, ferr, detach)
 
 
 @app.command()
@@ -86,8 +85,5 @@ def isready(hmmfile: Path, wait: bool = O_WAIT):
     """
     Is it ready?
     """
-    is_ready = partial(Sched.possess(HMMFile(hmmfile)).is_ready)
-    if wait:
-        wait_until(is_ready, ignore_exceptions=True)
-    else:
-        raise typer.Exit(0 if is_ready() else 1)
+    is_ready = partial(Sched.possess(HMMFile(hmmfile)).is_ready, wait)
+    raise typer.Exit(0 if is_ready() else 1)
