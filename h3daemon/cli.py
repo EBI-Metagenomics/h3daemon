@@ -8,9 +8,10 @@ from typing import Optional
 import typer
 from typer import echo
 
-from h3daemon.hmmfile import HMMFile
-from h3daemon.sched import Sched
 from h3daemon.connect import find_free_port
+from h3daemon.hmmfile import HMMFile
+from h3daemon.pidfile import create_pidfile
+from h3daemon.sched import Sched
 
 __all__ = ["app"]
 
@@ -54,9 +55,10 @@ def start(
     Start daemon.
     """
     file = HMMFile(hmmfile)
-    if file.pidfile.is_locked():
+    pidfile = create_pidfile(file.path)
+    if pidfile.is_locked():
         if force:
-            Sched.possess(file).kill_children()
+            Sched.possess(file, pidfile).kill_children()
             file = HMMFile(hmmfile)
         else:
             raise RuntimeError(f"Daemon for {hmmfile} is running.")
@@ -65,7 +67,7 @@ def start(
     fin = open(stdin, "r") if stdin else stdin
     fout = open(stdout, "w+") if stdout else stdout
     ferr = open(stderr, "w+") if stderr else stderr
-    Sched.daemonize(file, cport, wport, fin, fout, ferr, detach)
+    Sched.daemonize(file, pidfile, cport, wport, fin, fout, ferr, detach)
 
 
 @app.command()

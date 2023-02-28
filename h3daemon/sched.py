@@ -8,11 +8,13 @@ from typing import Optional
 
 import psutil
 from daemon import DaemonContext
+from pidlockfile import PIDLockFile
 
 from h3daemon.connect import find_free_port
 from h3daemon.errors import ChildNotFoundError
 from h3daemon.hmmfile import HMMFile
 from h3daemon.master import Master
+from h3daemon.pidfile import create_pidfile
 from h3daemon.polling import wait_until
 from h3daemon.worker import Worker
 
@@ -77,8 +79,11 @@ class Sched:
         self._proc = proc
 
     @classmethod
-    def possess(cls, hmmfile: HMMFile):
-        pid = hmmfile.pidfile.is_locked()
+    def possess(cls, hmmfile: HMMFile, pidfile: Optional[PIDLockFile] = None):
+        if not pidfile:
+            pidfile = create_pidfile(hmmfile.path)
+
+        pid = pidfile.is_locked()
         if pid:
             return cls(psutil.Process(pid))
         raise RuntimeError(f"Failed to possess {hmmfile}. Is it running?")
@@ -86,6 +91,7 @@ class Sched:
     @staticmethod
     def daemonize(
         hmmfile: HMMFile,
+        pidfile: PIDLockFile,
         cport: int,
         wport: int,
         stdin,
@@ -93,10 +99,10 @@ class Sched:
         stderr,
         detach: Optional[bool] = None,
     ):
-        assert hmmfile.pidfile.is_locked() is None
+        assert pidfile.is_locked() is None
         ctx = DaemonContext(
             working_directory=hmmfile.workdir,
-            pidfile=hmmfile.pidfile,
+            pidfile=pidfile,
             detach_process=detach,
             stdin=stdin,
             stdout=stdout,
