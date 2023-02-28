@@ -25,6 +25,7 @@ app = typer.Typer(
 O_VERSION = typer.Option(None, "--version", is_eager=True)
 O_PORT = typer.Option(0, help="Port to listen to.")
 O_FORCE = typer.Option(False, "--force")
+O_WAIT = typer.Option(False, "--wait")
 O_STDIN = typer.Option(None, "--stdin")
 O_STDOUT = typer.Option(None, "--stdout")
 O_STDERR = typer.Option(None, "--stderr")
@@ -77,9 +78,12 @@ def stop(hmmfile: Path, force: bool = O_FORCE):
 
 
 @app.command()
-def isready(hmmfile: Path):
+def isready(hmmfile: Path, wait: bool = O_WAIT):
     """
     Is it ready?
     """
-    cb = partial(Sched.possess(HMMFile(hmmfile)).is_ready)
-    wait_until(cb, ignore_exceptions=True)
+    is_ready = partial(Sched.possess(HMMFile(hmmfile)).is_ready)
+    if wait:
+        wait_until(is_ready, ignore_exceptions=True)
+    else:
+        raise typer.Exit(0 if is_ready() else 1)
