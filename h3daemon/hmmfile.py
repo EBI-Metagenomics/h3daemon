@@ -1,6 +1,12 @@
 from pathlib import Path
+from subprocess import check_call
+
+import fasteners
+import hmmer
 
 __all__ = ["HMMFile"]
+
+pressed_extensions = ["h3f", "h3i", "h3m", "h3p"]
 
 
 class HMMFile:
@@ -13,9 +19,23 @@ class HMMFile:
         if not file.exists():
             raise ValueError(f"`{file}` does not exist.")
 
-        extensions = ["h3f", "h3i", "h3m", "h3p"]
-        for x in extensions:
-            filename = Path(f"{file}.{x}")
+    def ensure_pressed(self):
+        try:
+            self._raise_on_missing_pressed_files()
+        except ValueError:
+            lock = fasteners.InterProcessLock(f"{str(self._file)}.lock")
+            lock.acquire()
+            try:
+                for x in pressed_extensions:
+                    Path(f"{self._file}.{x}").unlink(True)
+                check_call([str(Path(hmmer.BIN_DIR) / "hmmpress"), str(self._file)])
+            finally:
+                lock.release()
+
+    def _raise_on_missing_pressed_files(self):
+        pressed_extensions = ["h3f", "h3i", "h3m", "h3p"]
+        for x in pressed_extensions:
+            filename = Path(f"{self._file}.{x}")
             if not filename.exists():
                 raise ValueError(f"`{filename.name}` must exist as well.")
 

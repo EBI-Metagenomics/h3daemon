@@ -42,6 +42,7 @@ def entry_point(hmmfile: str, cport: int, wport: int):
 
 class SchedContext:
     def __init__(self, hmmfile: HMMFile, cport: int = 0, wport: int = 0):
+        hmmfile.ensure_pressed()
         self._hmmfile = hmmfile
         self._cport = find_free_port() if cport == 0 else cport
         self._wport = find_free_port() if wport == 0 else wport

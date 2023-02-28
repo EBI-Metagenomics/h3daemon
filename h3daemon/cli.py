@@ -55,6 +55,7 @@ def start(
     Start daemon.
     """
     file = HMMFile(hmmfile)
+    file.ensure_pressed()
     pidfile = create_pidfile(file.path)
     if pidfile.is_locked():
         if force:
