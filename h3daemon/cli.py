@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 import importlib.metadata
-import os
-import signal
-import sys
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
-import psutil
 import typer
-from daemon import DaemonContext
-from pidlockfile import PIDLockFile
 from typer import echo
 
-from h3daemon.app import app_setup, app_terminate, app_main
-from h3daemon.process import wait_for_port
+from h3daemon.hmmfile import HMMFile
+from h3daemon.polling import wait_until
+from h3daemon.sched import Sched
+from h3daemon.socket import find_free_port
 
 __all__ = ["app"]
 
@@ -27,7 +24,7 @@ app = typer.Typer(
 
 O_VERSION = typer.Option(None, "--version", is_eager=True)
 O_PORT = typer.Option(0, help="Port to listen to.")
-O_ALL = typer.Option(False, "--all")
+O_FORCE = typer.Option(False, "--force")
 O_STDIN = typer.Option(None, "--stdin")
 O_STDOUT = typer.Option(None, "--stdout")
 O_STDERR = typer.Option(None, "--stderr")
@@ -47,99 +44,42 @@ def start(
     stdin: Optional[Path] = O_STDIN,
     stdout: Optional[Path] = O_STDOUT,
     stderr: Optional[Path] = O_STDERR,
+    force: bool = O_FORCE,
 ):
     """
     Start daemon.
     """
-    hmmfile = hmmfile.absolute()
-
-    if not hmmfile.name.endswith(".hmm"):
-        raise ValueError(f"`{hmmfile}` does not end with `.hmm`.")
-
-    if not hmmfile.exists():
-        raise ValueError(f"`{hmmfile}` does not exist.")
-
-    extensions = ["h3f", "h3i", "h3m", "h3p"]
-    for x in extensions:
-        filename = Path(f"{hmmfile}.{x}")
-        if not filename.exists():
-            raise ValueError(f"`{filename.name}` must exist as well.")
-
-    workdir = str(hmmfile.parent)
-    pidfile = PIDLockFile(f"{hmmfile}.pid", timeout=5)
-    ctx = DaemonContext(working_directory=workdir, pidfile=pidfile)
-    ctx.stdin = open(stdin, "r") if stdin else stdin
-    ctx.stdout = open(stdout, "w+") if stdout else stdout
-    ctx.stderr = open(stderr, "w+") if stderr else stderr
-    ctx.signal_map = {signal.SIGTERM: app_terminate, signal.SIGINT: app_terminate}
-    app_setup(port)
-    with ctx:
-        app_main(str(hmmfile))
+    file = HMMFile(hmmfile)
+    if file.pidfile.is_locked():
+        if force:
+            Sched.possess(file).kill_children()
+            file = HMMFile(hmmfile)
+        else:
+            raise RuntimeError(f"Daemon for {hmmfile} is running.")
+    cport = find_free_port() if port == 0 else port
+    wport = find_free_port()
+    fin = open(stdin, "r") if stdin else stdin
+    fout = open(stdout, "w+") if stdout else stdout
+    ferr = open(stderr, "w+") if stderr else stderr
+    Sched.spawn(cport, wport, file, fin, fout, ferr)
 
 
 @app.command()
-def stop(hmmfile: Optional[Path] = typer.Argument(None), all: bool = O_ALL):
+def stop(hmmfile: Path, force: bool = O_FORCE):
     """
     Stop daemon.
     """
-    if all:
-        stop_all()
-        return
-
-    assert hmmfile
-    hmmfile = hmmfile.absolute()
-
-    if not hmmfile.name.endswith(".hmm"):
-        raise ValueError(f"`{hmmfile}` does not end with `.hmm`.")
-
-    if not hmmfile.exists():
-        raise ValueError(f"`{hmmfile}` does not exist.")
-
-    pidfile = PIDLockFile(f"{hmmfile}.pid", timeout=5)
-    pid = pidfile.is_locked()
-    if pid:
-        os.kill(pid, signal.SIGTERM)
+    sched = Sched.possess(HMMFile(hmmfile))
+    if force:
+        sched.kill_children()
     else:
-        echo(f"{hmmfile}: NOT running")
+        sched.terminate_children()
 
 
 @app.command()
-def port(hmmfile: Path):
+def isready(hmmfile: Path):
     """
-    Get port or fail.
+    Is it ready?
     """
-    hmmfile = hmmfile.absolute()
-
-    if not hmmfile.name.endswith(".hmm"):
-        raise ValueError(f"`{hmmfile}` does not end with `.hmm`.")
-
-    if not hmmfile.exists():
-        raise ValueError(f"`{hmmfile}` does not exist.")
-
-    pidfile = PIDLockFile(f"{hmmfile}.pid", timeout=5)
-    pid = pidfile.is_locked()
-    if pid:
-        port = wait_for_port(pid)
-        if port == -1:
-            raise typer.Exit(1)
-        echo(f"{port}")
-
-
-def stop_all():
-    pid = os.getpid()
-    exe = sys.argv[0]
-    uid = os.getuid()
-
-    found = True
-    while found:
-        found = False
-        for proc in psutil.process_iter(["pid", "cmdline", "uids"]):
-            if proc.uids().real != uid or proc.pid == pid:
-                continue
-            if proc.status() == "zombie":
-                continue
-            cmdline = proc.cmdline()
-            if len(cmdline) > 1 and cmdline[1] == exe:
-                proc.terminate()
-                found = True
-                break
+    cb = partial(Sched.possess(HMMFile(hmmfile)).is_ready)
+    wait_until(cb, ignore_exceptions=True)

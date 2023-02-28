@@ -1,0 +1,52 @@
+from __future__ import annotations
+
+import time
+from pathlib import Path
+
+import hmmer
+import psutil
+
+from h3daemon.socket import can_connect
+
+__all__ = ["Master"]
+
+
+class Master:
+    def __init__(self, proc: psutil.Process):
+        self._proc = proc
+
+    @staticmethod
+    def cmd(cport: int, wport: int, hmmfile: str):
+        hmmpgmd = str(Path(hmmer.BIN_DIR) / "hmmpgmd")
+        cmd = [hmmpgmd, "--master", "--hmmdb", hmmfile]
+        cmd += ["--cport", str(cport), "--wport", str(wport)]
+        return cmd
+
+    def is_ready(self, cport: int):
+        if not self.is_running():
+            return False
+        try:
+            lports = self.local_listening_ports()
+        except RuntimeError:
+            # psutil bug: https://github.com/giampaolo/psutil/issues/2116
+            time.sleep(0.1)
+            lports = [cport]
+        return cport in lports and can_connect(cport)
+
+    def get_port(self) -> int:
+        return next(iter(self.local_listening_ports()))
+
+    def is_running(self):
+        return self._proc.is_running()
+
+    def local_listening_ports(self):
+        connections = self._proc.connections(kind="tcp")
+        return [x.laddr.port for x in connections if x.status == "LISTEN"]
+
+    def local_established_ports(self):
+        connections = self._proc.connections(kind="tcp")
+        return [x.laddr.port for x in connections if x.status == "ESTABLISHED"]
+
+    def remote_established_ports(self):
+        connections = self._proc.connections(kind="tcp")
+        return [x.raddr.port for x in connections if x.status == "ESTABLISHED"]
