@@ -13,6 +13,7 @@ hmmer = ">=0.2.1"
 python-daemon = ">=2.3.2"
 psutil = ">=5.9.4"
 pidlockfile = ">=0.3"
+fasteners = ">=0.18"
 
 [build-system]
 requires = ["poetry-core"]
