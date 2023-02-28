@@ -9,6 +9,8 @@ from h3daemon.master import Master
 from h3daemon.polling import wait_until
 from h3daemon.worker import Worker
 
+from typing import Optional
+
 __all__ = ["Sched"]
 
 
@@ -24,9 +26,21 @@ class Sched:
         raise RuntimeError(f"Failed to possess {hmmfile}. Is it running?")
 
     @staticmethod
-    def spawn(cport: int, wport: int, hmmfile: HMMFile, fin, fout, ferr):
+    def spawn(
+        cport: int,
+        wport: int,
+        hmmfile: HMMFile,
+        fin,
+        fout,
+        ferr,
+        detach: Optional[bool] = None,
+    ):
         assert hmmfile.pidfile.is_locked() is None
-        ctx = DaemonContext(working_directory=hmmfile.workdir, pidfile=hmmfile.pidfile)
+        ctx = DaemonContext(
+            working_directory=hmmfile.workdir,
+            pidfile=hmmfile.pidfile,
+            detach_process=detach,
+        )
         ctx.stdin = fin
         ctx.stdout = fout
         ctx.stderr = ferr

@@ -29,6 +29,9 @@ O_WAIT = typer.Option(False, "--wait")
 O_STDIN = typer.Option(None, "--stdin")
 O_STDOUT = typer.Option(None, "--stdout")
 O_STDERR = typer.Option(None, "--stderr")
+O_DETACH = typer.Option(
+    None, "--detach/--no-detach", show_default=False, help="[default: None]"
+)
 
 
 @app.callback(invoke_without_command=True)
@@ -46,6 +49,7 @@ def start(
     stdout: Optional[Path] = O_STDOUT,
     stderr: Optional[Path] = O_STDERR,
     force: bool = O_FORCE,
+    detach: Optional[bool] = O_DETACH,
 ):
     """
     Start daemon.
@@ -62,7 +66,7 @@ def start(
     fin = open(stdin, "r") if stdin else stdin
     fout = open(stdout, "w+") if stdout else stdout
     ferr = open(stderr, "w+") if stderr else stderr
-    Sched.spawn(cport, wport, file, fin, fout, ferr)
+    Sched.spawn(cport, wport, file, fin, fout, ferr, detach)
 
 
 @app.command()
