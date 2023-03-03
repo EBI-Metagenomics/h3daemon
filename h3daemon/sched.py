@@ -102,7 +102,7 @@ class Sched:
     ):
         assert pidfile.is_locked() is None
         ctx = DaemonContext(
-            working_directory=hmmfile.workdir,
+            working_directory=str(hmmfile.path.parent),
             pidfile=pidfile,
             detach_process=detach,
             stdin=stdin,

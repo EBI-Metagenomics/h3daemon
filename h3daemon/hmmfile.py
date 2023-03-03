@@ -32,20 +32,19 @@ class HMMFile:
             finally:
                 lock.release()
 
+    @property
+    def _lockfile(self):
+        return self.path.parent / f"{self.path}.lock"
+
     def _raise_on_missing_pressed_files(self):
-        pressed_extensions = ["h3f", "h3i", "h3m", "h3p"]
         for x in pressed_extensions:
             filename = Path(f"{self._file}.{x}")
             if not filename.exists():
                 raise ValueError(f"`{filename.name}` must exist as well.")
 
     def __str__(self):
-        return str(self._file)
+        return str(self.path)
 
     @property
     def path(self) -> Path:
         return self._file
-
-    @property
-    def workdir(self) -> str:
-        return str(self._file.parent)
