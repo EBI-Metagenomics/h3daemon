@@ -41,7 +41,9 @@ def entry_point(hmmfile: str, cport: int, wport: int):
 
 
 class SchedContext:
-    def __init__(self, hmmfile: HMMFile, cport: int = 0, wport: int = 0):
+    def __init__(
+        self, hmmfile: HMMFile, cport: int = 0, wport: int = 0, stdout=None, stderr=None
+    ):
         hmmfile.ensure_pressed()
         self._hmmfile = hmmfile
         self._cport = find_free_port() if cport == 0 else cport
@@ -49,11 +51,13 @@ class SchedContext:
         self._exe = sys.executable
         self._scr = os.path.realpath(__file__)
         self._sched: Optional[Sched] = None
+        self._stdout = stdout
+        self._stderr = stderr
 
     def open(self):
         cmd = [self._exe, self._scr, str(self._hmmfile)]
         cmd += [str(self._cport), str(self._wport)]
-        self._sched = Sched(psutil.Popen(cmd))
+        self._sched = Sched(psutil.Popen(cmd, stdout=self._stdout, stderr=self._stderr))
         atexit.register(self.close)
 
     def close(self):
