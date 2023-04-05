@@ -6,8 +6,6 @@ from pathlib import Path
 import hmmer
 import psutil
 
-from h3daemon.connect import can_connect
-
 __all__ = ["Master"]
 
 
@@ -35,7 +33,7 @@ class Master:
             # psutil bug: https://github.com/giampaolo/psutil/issues/2116
             time.sleep(0.1)
             lports = [cport]
-        return cport in lports and can_connect(cport)
+        return cport in lports
 
     def get_port(self) -> int:
         return next(iter(self.local_listening_ports()))
