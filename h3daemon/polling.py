@@ -5,8 +5,8 @@ __all__ = ["wait_until"]
 
 
 def wait_until(ok: Callable[[], bool], n=50):
-    for _ in range(n):
+    for i in range(n):
         if ok():
             return
-        time.sleep(0.1)
+        time.sleep(0.1 + (i / n) * 1.0)
     raise TimeoutError()
