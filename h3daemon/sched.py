@@ -24,7 +24,7 @@ __all__ = ["Sched", "SchedContext"]
 def spawn_master(hmmfile: str, cport: int, wport: int):
     cmd = Master.cmd(cport, wport, hmmfile)
     master = Master(psutil.Popen(cmd))
-    wait_until(partial(master.is_ready, cport))
+    wait_until(partial(master.is_ready))
     return master
 
 
@@ -146,7 +146,7 @@ class Sched:
             worker = self.worker
         except ChildNotFoundError:
             return False
-        return master.is_ready(master.get_port()) and worker.is_ready()
+        return master.is_ready() and worker.is_ready() and self._is_healthy()
 
     def is_ready(self, wait=False):
         if wait:
@@ -166,6 +166,43 @@ class Sched:
         if len(children) > 1:
             return Worker(children[1])
         raise ChildNotFoundError("Worker not found.")
+
+    def get_cport(self) -> int:
+        self.is_ready(True)
+        return self._get_cport()
+
+    def _is_healthy(self):
+        try:
+            self._assert_healthy()
+        except AssertionError:
+            return False
+        return True
+
+    def _assert_healthy(self):
+        assert self.master.is_running()
+        assert self.worker.is_running()
+        master_listen = self.master.local_listening_ports()
+        master_lport = self.master.local_established_ports()
+        master_rport = self.master.remote_established_ports()
+        worker_lport = self.worker.local_established_ports()
+        worker_rport = self.worker.remote_established_ports()
+
+        assert len(master_lport) == 1
+        assert len(worker_rport) == 1
+        assert master_lport[0] == worker_rport[0]
+        assert len(master_rport) == 1
+        assert len(worker_lport) == 1
+        assert master_rport[0] == worker_lport[0]
+        assert len(master_listen) == 2
+        master_ports = set(master_listen)
+        assert len(master_ports) == 2
+        master_ports.remove(worker_rport[0])
+        assert len(master_ports) == 1
+
+    def _get_cport(self):
+        master_ports = set(self.master.local_listening_ports())
+        master_ports.remove(self.worker.remote_established_ports()[0])
+        return int(list(master_ports)[0])
 
 
 if __name__ == "__main__":

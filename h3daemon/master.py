@@ -24,7 +24,7 @@ class Master:
         cmd += ["--cport", str(cport), "--wport", str(wport)]
         return cmd
 
-    def is_ready(self, cport: int):
+    def is_ready(self):
         if not self.is_running():
             return False
         try:
@@ -32,11 +32,8 @@ class Master:
         except RuntimeError:
             # psutil bug: https://github.com/giampaolo/psutil/issues/2116
             time.sleep(0.1)
-            lports = [cport]
-        return cport in lports
-
-    def get_port(self) -> int:
-        return next(iter(self.local_listening_ports()))
+            lports = [-1, -1]
+        return len(lports) > 1
 
     def is_running(self):
         return self._proc.is_running()
